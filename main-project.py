@@ -4,7 +4,8 @@ from tkinter import messagebox
 import mysql.connector
 from mysql.connector import Error
 
-def connect_db(): # для подключения к БД
+# Функция для подключения к базе данных
+def connect_db():
     try:
         conn = mysql.connector.connect(
             host='127.0.0.1',
@@ -16,13 +17,15 @@ def connect_db(): # для подключения к БД
         if conn.is_connected():
             return conn
     except Error as e:
-        print(f"Error: {e}")
+        print(f"Ошибка подключения к базе данных: {e}")
         return None
 
-def create_table(): # для создания таблицы пользователей
+# Функция для создания таблиц пользователей и результатов
+def create_tables():
     conn = connect_db()
     if conn:
         cursor = conn.cursor()
+        # Создаем таблицу пользователей
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -30,12 +33,22 @@ def create_table(): # для создания таблицы пользоват�
                 password VARCHAR(255) NOT NULL
             )
         """)
+        # Создаем таблицу результатов
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS results (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                result VARCHAR(255) NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
         conn.commit()
         cursor.close()
         conn.close()
 
-def insert_user(username, password): # для добавления нового пользователя в БД
-    conn = connect_db() 
+# Функция для добавления нового пользователя в базу данных
+def insert_user(username, password):
+    conn = connect_db()
     if conn:
         cursor = conn.cursor()
         try:
@@ -50,7 +63,8 @@ def insert_user(username, password): # для добавления нового 
             cursor.close()
             conn.close()
 
-def authenticate(username, password): # для аутентификации пользователя
+# Функция для аутентификации пользователя
+def authenticate(username, password):
     conn = connect_db()
     if conn:
         cursor = conn.cursor()
@@ -64,12 +78,14 @@ def authenticate(username, password): # для аутентификации по
         if user:
             messagebox.showinfo("Успех", "Авторизация успешна!")
             root.destroy()
-            main_application() # вызов основного приложения после аутентификации
+            main_application(user[0]) # вызов основного приложения после аутентификации
         else:
             messagebox.showerror("Ошибка", "Неверный логин или пароль.")
 
-def main_application(): # наперстки
-    global ball_under
+# Основное приложение - игра "Наперстки"
+def main_application(user_id):
+    global ball_under, user_id_global
+    user_id_global = user_id
     main_window = tk.Tk()  # создаем главное окно
     main_window.title("Наперстки")
     main_window.geometry("500x300")
@@ -97,19 +113,36 @@ def main_application(): # наперстки
 
     main_window.mainloop()
 
-def check_guess(number): # для обработки клика на кнопку
-    global ball_under 
+# Функция для обработки клика на кнопку
+def check_guess(number):
+    global ball_under
     if number == ball_under:
         result_label.config(text="Вы угадали!")  # вывод при победе =)
+        save_result("Вы угадали!")
     else:
         result_label.config(text=f"Не угадали! Шарик был под наперстком номер {ball_under + 1} :-(")  # вывод при поражении =(
+        save_result(f"Не угадали! Шарик был под наперстком номер {ball_under + 1} :-(")
 
-def shuffle_balls(): # для перемешивания шариков
+# Функция для перемешивания шариков
+def shuffle_balls():
     global ball_under
     ball_under = random.randint(0, 2)  # случайный выбор номера наперстка
     result_label.config(text="Наперстки перемешаны!")  # сообщение после перемешивания
 
-def register(): # функция для регистрации нового пользователя
+# Функция для сохранения результата в базу данных
+def save_result(result):
+    conn = connect_db()
+    if conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO results (user_id, result) VALUES (%s, %s)
+        """, (user_id_global, result))
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+# Функция для регистрации нового пользователя
+def register():
     username = entry_username.get()
     password = entry_password.get()
     if username and password:
@@ -117,16 +150,18 @@ def register(): # функция для регистрации нового по
     else:
         messagebox.showerror("Ошибка", "Пожалуйста, заполните все поля.")
 
-def login(): # функция для входа пользователя
+# Функция для входа пользователя
+def login():
     username = entry_username.get()
     password = entry_password.get()
     authenticate(username, password)
 
+# Основная часть программы
 if __name__ == "__main__":
-    create_table()  # создание таблицы пользователей, если она не существует
+    create_tables()  # создание таблиц пользователей и результатов, если они не существуют
     root = tk.Tk()
     root.title("Авторизация")
-    root.geometry("250x200") 
+    root.geometry("250x200")
     x = (root.winfo_screenwidth() - root.winfo_reqwidth()) / 2
     y = (root.winfo_screenheight() - root.winfo_reqheight()) / 2
     root.wm_geometry("+%d+%d" % (x, y))
